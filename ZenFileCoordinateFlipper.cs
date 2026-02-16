@@ -32,6 +32,7 @@ namespace Gothic2ZenFlipper
             bool previewMode = false;
             bool flipRotation = false;
             bool verbose = false;
+            string prefix = "";
 
             // Parse additional arguments for axis selection
             for (int i = (outputFile != null ? 2 : 1); i < args.Length; i++)
@@ -85,7 +86,28 @@ namespace Gothic2ZenFlipper
                     case "-v":
                         verbose = true;
                         break;
+                    case "-prefix":
+                        if (i + 1 < args.Length)
+                        {
+                            prefix = args[++i];
+                        }
+                        else
+                        {
+                            Console.WriteLine("Error: -prefix requires a value!");
+                            ShowUsage();
+                            return;
+                        }
+                        break;
                 }
+            }
+
+            // Detect batch mode: first argument is a directory
+            if (Directory.Exists(inputFile))
+            {
+                string inputDir = inputFile;
+                string outputDir = outputFile ?? inputDir;
+                ProcessBatchDirectory(inputDir, outputDir, prefix, flipX, flipY, flipZ, flipRotation, verbose, previewMode);
+                return;
             }
 
             if (!File.Exists(inputFile))
@@ -96,7 +118,9 @@ namespace Gothic2ZenFlipper
 
             Console.WriteLine($"Input file: {inputFile}");
             if (!previewMode && outputFile != null)
+            {
                 Console.WriteLine($"Output file: {outputFile}");
+            }
             Console.WriteLine($"Flipping axes: X={flipX}, Y={flipY}, Z={flipZ}");
             Console.WriteLine($"Flip rotation matrices: {flipRotation}");
             Console.WriteLine($"Mode: {(previewMode ? "PREVIEW ONLY" : "APPLY CHANGES")}\n");
@@ -127,9 +151,84 @@ namespace Gothic2ZenFlipper
             }
         }
 
+        static void ProcessBatchDirectory(
+            string inputDir, string outputDir, string prefix,
+            bool flipX, bool flipY, bool flipZ,
+            bool flipRotation, bool verbose, bool previewMode)
+        {
+            string[] zenFiles = Directory.GetFiles(inputDir, "*.zen", SearchOption.TopDirectoryOnly);
+
+            if (zenFiles.Length == 0)
+            {
+                Console.WriteLine($"No .zen files found in '{inputDir}'.");
+                return;
+            }
+
+            Console.WriteLine($"Batch mode: {zenFiles.Length} .zen file(s) found in '{inputDir}'");
+            Console.WriteLine($"Output directory: {outputDir}");
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                Console.WriteLine($"Output prefix: {prefix}");
+            }
+            Console.WriteLine($"Flipping axes: X={flipX}, Y={flipY}, Z={flipZ}");
+            Console.WriteLine($"Flip rotation matrices: {flipRotation}");
+            Console.WriteLine($"Mode: {(previewMode ? "PREVIEW ONLY" : "APPLY CHANGES")}\n");
+
+            if (!previewMode && !Directory.Exists(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+                Console.WriteLine($"Created output directory: {outputDir}\n");
+            }
+
+            int successCount = 0;
+            int failCount = 0;
+            List<string> failedFiles = new List<string>();
+
+            for (int f = 0; f < zenFiles.Length; f++)
+            {
+                string inputPath = zenFiles[f];
+                string fileName = Path.GetFileName(inputPath);
+                string outputPath = Path.Combine(outputDir, prefix + fileName);
+
+                Console.WriteLine($"--- [{f + 1}/{zenFiles.Length}] {fileName} ---");
+
+                try
+                {
+                    if (previewMode)
+                    {
+                        PreviewChanges(inputPath, flipX, flipY, flipZ, flipRotation);
+                    }
+                    else
+                    {
+                        ProcessZenFile(inputPath, outputPath, flipX, flipY, flipZ, flipRotation, verbose);
+                        Console.WriteLine($"Saved to: {outputPath}");
+                    }
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"FAILED: {ex.Message}");
+                    failCount++;
+                    failedFiles.Add(fileName);
+                }
+
+                Console.WriteLine();
+            }
+
+            Console.WriteLine("=== Batch Summary ===");
+            Console.WriteLine($"  Total files: {zenFiles.Length}");
+            Console.WriteLine($"  Succeeded: {successCount}");
+            Console.WriteLine($"  Failed: {failCount}");
+            if (failedFiles.Count > 0)
+            {
+                Console.WriteLine($"  Failed files: {string.Join(", ", failedFiles)}");
+            }
+        }
+
         static void ShowUsage()
         {
-            Console.WriteLine("Usage: ZenFileCoordinateFlipper <input.zen> [output.zen] [options]\n");
+            Console.WriteLine("Usage: ZenFileCoordinateFlipper <input.zen> [output.zen] [options]");
+            Console.WriteLine("       ZenFileCoordinateFlipper <input_dir> <output_dir> [options] [-prefix F_]\n");
             Console.WriteLine("Options:");
             Console.WriteLine("  -x         Flip X axis only (default)");
             Console.WriteLine("  -y         Flip Y axis only");
@@ -144,6 +243,7 @@ namespace Gothic2ZenFlipper
             Console.WriteLine("  -p         Short for -preview");
             Console.WriteLine("  -verbose   Show detailed changes");
             Console.WriteLine("  -v         Short for -verbose");
+            Console.WriteLine("  -prefix    Add prefix to output filenames (batch mode only)");
             Console.WriteLine("\nExamples:");
             Console.WriteLine("  Preview changes:");
             Console.WriteLine("    ZenFileCoordinateFlipper world.zen -preview -x");
@@ -151,6 +251,10 @@ namespace Gothic2ZenFlipper
             Console.WriteLine("    ZenFileCoordinateFlipper world.zen world_flipped.zen -x");
             Console.WriteLine("  Apply with rotation flip:");
             Console.WriteLine("    ZenFileCoordinateFlipper world.zen world_flipped.zen -x -rotation");
+            Console.WriteLine("  Batch process directory:");
+            Console.WriteLine("    ZenFileCoordinateFlipper input_dir/ output_dir/ -x -rotation");
+            Console.WriteLine("  Batch with prefix:");
+            Console.WriteLine("    ZenFileCoordinateFlipper input_dir/ output_dir/ -x -rotation -prefix F_");
         }
 
         static void PreviewChanges(string inputFile, bool flipX, bool flipY, bool flipZ, bool flipRotation)
