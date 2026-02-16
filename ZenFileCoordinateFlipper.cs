@@ -138,7 +138,7 @@ namespace Gothic2ZenFlipper
             Console.WriteLine("  -xz        Flip X and Z axes");
             Console.WriteLine("  -yz        Flip Y and Z axes");
             Console.WriteLine("  -xyz       Flip all three axes");
-            Console.WriteLine("  -rotation  Also flip rotation matrices (experimental)");
+            Console.WriteLine("  -rotation  Also flip rotation matrices");
             Console.WriteLine("  -r         Short for -rotation");
             Console.WriteLine("  -preview   Show what would change without modifying file");
             Console.WriteLine("  -p         Short for -preview");
@@ -333,23 +333,28 @@ namespace Gothic2ZenFlipper
             });
 
             // Handle rotation matrices if requested
-            // trafoOSToWSRot is a 3x3 rotation matrix stored as raw hex floats
-            // Format: trafoOSToWSRot=raw:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (12 floats as hex)
+            // trafoOSToWSRot is a 3x3 rotation matrix stored as 9 little-endian floats in hex (72 hex chars)
+            // Layout (row-major, no padding): [m00 m01 m02] [m10 m11 m12] [m20 m21 m22]
+            //
+            // Correct reflection formula: R' = S * R * S, where S = diag(sx, sy, sz)
+            // Element R[i][j] is negated when exactly one of axis i or axis j is flipped.
+            // This preserves det(R') = +1 (valid rotation) for any input rotation.
             if (flipRotation)
             {
                 int rotCount = 0;
-                string rotPattern = @"trafoOSToWSRot=raw:([0-9a-fA-F]{96})";
+                string rotPattern = @"trafoOSToWSRot=raw:([0-9a-fA-F]{72})";
+
+                int[] signs = new int[] { flipX ? -1 : 1, flipY ? -1 : 1, flipZ ? -1 : 1 };
 
                 content = Regex.Replace(content, rotPattern, match =>
                 {
                     string hexData = match.Groups[1].Value;
-                    float[] matrix = new float[12]; // 3x3 rotation matrix + padding
+                    float[] matrix = new float[9];
 
-                    // Parse hex to floats (each float is 8 hex chars = 4 bytes)
-                    for (int i = 0; i < 12; i++)
+                    // Parse hex to floats (each float is 8 hex chars = 4 bytes, little-endian)
+                    for (int i = 0; i < 9; i++)
                     {
                         string hexFloat = hexData.Substring(i * 8, 8);
-                        // Convert little-endian hex to float
                         byte[] bytes = new byte[4];
                         for (int b = 0; b < 4; b++)
                         {
@@ -358,33 +363,21 @@ namespace Gothic2ZenFlipper
                         matrix[i] = BitConverter.ToSingle(bytes, 0);
                     }
 
-                    // The matrix is stored as: [m00 m01 m02 pad] [m10 m11 m12 pad] [m20 m21 m22 pad]
-                    // For X-axis flip: negate first column (m00, m10, m20)
-                    // For Y-axis flip: negate second column (m01, m11, m21)
-                    // For Z-axis flip: negate third column (m02, m12, m22)
-
-                    if (flipX)
+                    // Apply R' = S * R * S: negate element [i][j] when signs[i] * signs[j] == -1
+                    for (int row = 0; row < 3; row++)
                     {
-                        matrix[0] = -matrix[0];  // m00
-                        matrix[4] = -matrix[4];  // m10
-                        matrix[8] = -matrix[8];  // m20
-                    }
-                    if (flipY)
-                    {
-                        matrix[1] = -matrix[1];  // m01
-                        matrix[5] = -matrix[5];  // m11
-                        matrix[9] = -matrix[9];  // m21
-                    }
-                    if (flipZ)
-                    {
-                        matrix[2] = -matrix[2];  // m02
-                        matrix[6] = -matrix[6];  // m12
-                        matrix[10] = -matrix[10]; // m22
+                        for (int col = 0; col < 3; col++)
+                        {
+                            if (signs[row] * signs[col] == -1)
+                            {
+                                matrix[row * 3 + col] = -matrix[row * 3 + col];
+                            }
+                        }
                     }
 
                     // Convert back to hex
                     string newHex = "";
-                    for (int i = 0; i < 12; i++)
+                    for (int i = 0; i < 9; i++)
                     {
                         byte[] bytes = BitConverter.GetBytes(matrix[i]);
                         foreach (byte b in bytes)

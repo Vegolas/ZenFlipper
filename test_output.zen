@@ -1,0 +1,32 @@
+[% oCWorld:zCWorld 64513 0]
+	[VobTree % 0 0]
+		childs0=int:23
+		[% zCVobLevelCompo:zCVob 52224 1]
+			pack=int:0
+			presetName=string:
+			bbox3DWS=rawFloat:-18344.04 -4748.2275 -22510.285 26595.117 3980.6238 21626.574 
+			trafoOSToWSRot=raw:0000803f0000008000000080000000800000803f0000000000000080000000000000803f
+			trafoOSToWSPos=vec3:-0 0 0
+			vobName=string:LEVEL-VOB
+			visual=string:NEWWORLD_PART_CITY_P01.3DS
+		[]
+		childs1=int:3822
+		[% zCVobSound:zCVob 12289 3]
+			pack=int:0
+			presetName=string:
+			bbox3DWS=rawFloat:535.65906 -1020.4429 4463.6123 1735.659 179.5571 5663.6123 
+			trafoOSToWSRot=raw:6b177f3f00000080a25eac3d000000800000803f00000000a25eacbd000000006b177f3f
+			trafoOSToWSPos=vec3:1135.659 -420.4429 5063.6123
+			vobName=string:TORCH_BURN
+			sndName=string:TORCH_BURN
+		[]
+		childs2=int:0
+		[% zCVobSound:zCVob 12289 4]
+			pack=int:0
+			presetName=string:
+			bbox3DWS=rawFloat:551.922 -1032.4429 4857.6465 1751.922 167.5571 6057.6465 
+			trafoOSToWSRot=raw:6b177f3f00000080a25eac3d000000800000803f00000000a25eacbd000000006b177f3f
+			trafoOSToWSPos=vec3:1151.922 -432.4429 5457.6465
+			vobName=string:TORCH_BURN
+			sndName=string:TORCH_BURN
+		[]
