@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ZenFileCoordinateFlipper": {
+      "commandName": "Project",
+      "commandLineArgs": "\"E:\\_ReversedG2\\Gothic II\\_work\\data\\Worlds\\NewWorld\\NEWWORLD_UNCOMPILED.ZEN\" \"E:\\_ReversedG2\\Gothic II\\_work\\data\\Worlds\\NewWorld\\_VOBS_NEWWORLD_FLIPPED.ZEN\" -x -verbose -rotation"
+    }
+  }
+}
