@@ -236,6 +236,21 @@ namespace Gothic2ZenFlipper
             int bboxCount = Regex.Matches(content, @"bbox3DWS=rawFloat:").Count;
             Console.WriteLine($"Bounding boxes: {bboxCount}");
 
+            // Count keyframe sets
+            var keyframeMatches = Regex.Matches(content, @"keyframes=raw:([0-9a-fA-F]+)");
+            int kfSetCount = 0;
+            int kfTotalCount = 0;
+            foreach (Match kfMatch in keyframeMatches)
+            {
+                string hexData = kfMatch.Groups[1].Value;
+                if (hexData.Length > 0 && hexData.Length % 56 == 0)
+                {
+                    kfSetCount++;
+                    kfTotalCount += hexData.Length / 56;
+                }
+            }
+            Console.WriteLine($"Mover keyframe sets: {kfSetCount} ({kfTotalCount} keyframes)");
+
             if (flipRotation)
             {
                 int rotCount = Regex.Matches(content, @"trafoOSToWSRot=raw:").Count;
@@ -393,6 +408,85 @@ namespace Gothic2ZenFlipper
                 Console.WriteLine($"Modified {rotCount} rotation matrices");
             }
 
+            // Handle keyframes (zCMover keyframes: 7 floats per keyframe)
+            // Layout per keyframe: posX, posY, posZ, quatX, quatY, quatZ, quatW (56 hex chars)
+            // Positions are always flipped; quaternion rotation only when -rotation is specified
+            int keyframeSetCount = 0;
+            int totalKeyframesFlipped = 0;
+            string keyframePattern = @"keyframes=raw:([0-9a-fA-F]+)";
+
+            content = Regex.Replace(content, keyframePattern, match =>
+            {
+                string hexData = match.Groups[1].Value;
+                int hexPerKeyframe = 56; // 7 floats * 8 hex chars
+
+                if (hexData.Length == 0 || hexData.Length % hexPerKeyframe != 0)
+                {
+                    return match.Value;
+                }
+
+                int numKeyframes = hexData.Length / hexPerKeyframe;
+                StringBuilder newHex = new StringBuilder(hexData.Length);
+
+                for (int kf = 0; kf < numKeyframes; kf++)
+                {
+                    int offset = kf * hexPerKeyframe;
+                    float[] values = new float[7];
+
+                    for (int i = 0; i < 7; i++)
+                    {
+                        string hexFloat = hexData.Substring(offset + i * 8, 8);
+                        byte[] bytes = new byte[4];
+                        for (int b = 0; b < 4; b++)
+                        {
+                            bytes[b] = Convert.ToByte(hexFloat.Substring(b * 2, 2), 16);
+                        }
+                        values[i] = BitConverter.ToSingle(bytes, 0);
+                    }
+
+                    // Flip positions (indices 0=posX, 1=posY, 2=posZ)
+                    if (flipX) { values[0] = -values[0]; }
+                    if (flipY) { values[1] = -values[1]; }
+                    if (flipZ) { values[2] = -values[2]; }
+
+                    // Flip quaternion rotation if requested
+                    // Stored as (quatX, quatY, quatZ, quatW) at indices 3-6
+                    // Reflection formula: R' = S * R * S where S = diag(sx, sy, sz)
+                    if (flipRotation)
+                    {
+                        int sx = flipX ? -1 : 1;
+                        int sy = flipY ? -1 : 1;
+                        int sz = flipZ ? -1 : 1;
+
+                        values[3] *= sx;            // quatX
+                        values[4] *= sy;            // quatY
+                        values[5] *= sz;            // quatZ
+                        values[6] *= sx * sy * sz;  // quatW
+                    }
+
+                    for (int i = 0; i < 7; i++)
+                    {
+                        byte[] bytes = BitConverter.GetBytes(values[i]);
+                        foreach (byte b in bytes)
+                        {
+                            newHex.Append(b.ToString("x2"));
+                        }
+                    }
+                }
+
+                keyframeSetCount++;
+                totalKeyframesFlipped += numKeyframes;
+
+                if (verbose && keyframeSetCount <= 10)
+                {
+                    Console.WriteLine($"Keyframe set #{keyframeSetCount}: {numKeyframes} keyframes flipped");
+                }
+
+                return $"keyframes=raw:{newHex}";
+            });
+
+            Console.WriteLine($"Modified {keyframeSetCount} keyframe sets ({totalKeyframesFlipped} total keyframes)");
+
             // Handle bbox3DWS (bounding boxes)
             string bboxPattern = @"bbox3DWS=rawFloat:([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)";
 
@@ -437,6 +531,7 @@ namespace Gothic2ZenFlipper
             Console.WriteLine($"  Object positions (trafoOSToWSPos): {modifiedCount}");
             Console.WriteLine($"  Waypoint positions: {waypointCount}");
             Console.WriteLine($"  Waypoint directions: {directionCount}");
+            Console.WriteLine($"  Mover keyframe sets: {keyframeSetCount} ({totalKeyframesFlipped} keyframes)");
             Console.WriteLine($"  Bounding boxes: {bboxCount}");
         }
     }
