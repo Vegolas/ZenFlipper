@@ -455,9 +455,10 @@ namespace Gothic2ZenFlipper
             // trafoOSToWSRot is a 3x3 rotation matrix stored as 9 little-endian floats in hex (72 hex chars)
             // Layout (row-major, no padding): [m00 m01 m02] [m10 m11 m12] [m20 m21 m22]
             //
-            // Correct reflection formula: R' = S * R * S, where S = diag(sx, sy, sz)
-            // Element R[i][j] is negated when exactly one of axis i or axis j is flipped.
-            // This preserves det(R') = +1 (valid rotation) for any input rotation.
+            // Reflection formula: R' = S * R, where S = diag(sx, sy, sz)
+            // Negate entire row i when axis i is flipped.
+            // This correctly mirrors all local axis directions (each column's world-component
+            // for the flipped axis is negated). Produces det=-1 for odd-axis flips.
             if (flipRotation)
             {
                 int rotCount = 0;
@@ -482,12 +483,12 @@ namespace Gothic2ZenFlipper
                         matrix[i] = BitConverter.ToSingle(bytes, 0);
                     }
 
-                    // Apply R' = S * R * S: negate element [i][j] when signs[i] * signs[j] == -1
+                    // Apply R' = S * R: negate row i when signs[i] == -1
                     for (int row = 0; row < 3; row++)
                     {
                         for (int col = 0; col < 3; col++)
                         {
-                            if (signs[row] * signs[col] == -1)
+                            if (signs[row] == -1)
                             {
                                 matrix[row * 3 + col] = -matrix[row * 3 + col];
                             }
